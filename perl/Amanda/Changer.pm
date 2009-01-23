@@ -42,6 +42,7 @@ Amanda::Changer -- interface to changer scripts
 
     $chg->load(
 	label => "TAPE-012",
+	mode => "write",
 	res_cb => sub {
 	    my ($err, $reservation) = @_;
 	    if ($err) {
@@ -170,14 +171,27 @@ C<next_slot> attribute.
 
 =head2 CHANGER OBJECTS
 
+The most common operation with a tape changer is to load a volume.  The C<load>
+method is heavily overloaded to support a number of different ways to specify a
+volume.
+
+=head3 $chg->load(res_cb => $cb, mode => $mode, set_current => $sc, ..)
+
+In general, the method takes a C<res_cb> giving a callback that will receive
+the reservation.  If set_current is specified and true, then the changer's
+current slot should be updated to correspond to $slot. If not, then the changer
+should not update its current slot (but some changers will anyway -
+specifically, chg-compat).  The C<mode> describes the intended use of the
+volume by the caller, and should be one of C<"read"> (the default) or
+C<"write">.  Changers managing WORM media may use this parameter to provide a
+fresh volume for writing, but to search for already-written volumes when
+reading.
+
 =head3 $chg->load(res_cb => $cb, label => $label, set_current => $sc)
 
 Load a volume with the given label. This may leverage any barcodes or other
 indices that the changer has created, or may resort to a sequential scan of
-media. If set_current is specified and true, then the changer's current slot
-should be updated to correspond to $slot. If not, then the changer should not
-update its current slot (but some changers will anyway - specifically,
-chg-compat).
+media.
 
 Note that the changer I<tries> to load the requested volume, but it's a mean
 world out there, and you may not get what you want, so check the label on the
@@ -188,7 +202,7 @@ loaded volume before getting started.
 Reserve the volume in the "current" slot. This is used by the sequential
 taperscan algorithm to begin its search.
 
-=head3 $chg->load(res_cb => $cb, slot => "next")
+=head3 $chg->load(res_cb => $cb, slot => "next", set_current => $sc)
 
 Reserve the volume that follows the current slot.  This may not be a
 very efficient operation on all devices.
