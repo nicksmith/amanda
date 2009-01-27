@@ -1199,32 +1199,10 @@ static gboolean process_driver_command(taper_state_t * state) {
     cmdargs = getcmd();
     switch (cmdargs->cmd) {
     case PORT_WRITE:
-        /*
-         * PORT-WRITE
-         *   handle
-         *   hostname
-         *   features
-         *   diskname
-         *   level
-         *   datestamp
-         *   splitsize
-         *   split_diskbuffer
-         */
         process_port_write(state, cmdargs);
         break;
         
     case FILE_WRITE:
-        /*
-         * FILE-WRITE
-         *   handle
-         *   filename
-         *   hostname
-         *   features
-         *   diskname
-         *   level
-         *   datestamp
-         *   splitsize
-         */
         process_file_write(state, cmdargs);
         break;
         
