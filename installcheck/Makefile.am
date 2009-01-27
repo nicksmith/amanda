@@ -39,6 +39,7 @@ server_tests = \
 	Amanda_Taper_Scribe \
 	Amanda_Xfer_serveronly \
 	bigint \
+	taper \
 	amgetconf \
 	amtapetype
 
