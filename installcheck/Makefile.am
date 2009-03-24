@@ -33,8 +33,9 @@ server_tests = \
 	Amanda_Device \
 	Amanda_Holding \
 	Amanda_Logfile \
-	Amanda_Tapelist \
 	Amanda_Process \
+	Amanda_Tapelist \
+	Amanda_Taper_Scribe \
 	Amanda_Xfer_serveronly \
 	bigint \
 	amgetconf \

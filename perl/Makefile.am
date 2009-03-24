@@ -223,6 +223,15 @@ HTML_SOURCE_FILES += $(AmandaChanger_DATA)
 endif
 EXTRA_DIST += $(AmandaChanger_DATA)
 
+if WANT_SERVER
+# PACKAGE: Amanda::Taper::*
+AmandaTaperdir = $(amperldir)/Amanda/Taper
+AmandaTaper_DATA = \
+	Amanda/Taper/Scribe.pm
+HTML_SOURCE_FILES += $(AmandaTaper_DATA)
+endif
+EXTRA_DIST += $(AmandaTaper_DATA)
+
 # PACKAGE: Amanda::Process
 if WANT_SERVER
 Amanda_DATA += Amanda/Process.pm
