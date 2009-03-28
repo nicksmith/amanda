@@ -1,0 +1,247 @@
+#!/usr/bin/sh
+
+LOGDIR="${BASEDIR}/var/log/amanda"
+INSTALL_LOG="${LOGDIR}/install.log"
+INSTALL_ERR="${LOGDIR}/install.err"
+AMANDA_USER="amandabackup"
+AMANDA_GROUP="disk"
+AMANDA_HOMEDIR="${BASEDIR}/var/opt/amanda"
+SYSCONFDIR="${BASEDIR}/opt/etc"
+SBIN_DIR=/opt/amanda/sbin
+
+PATH=/usr/bin:/usr/local/bin:/usr/sbin:/opt/csw/bin
+export PATH
+
+
+TMPFILE="${BASEDIR}/tmp/pkg-${PKG}.$$"
+
+
+# create example directory
+if [ ! -d ${AMANDA_HOMEDIR}/example ] ; then
+        echo "`date +'%b %e %Y %T'`: '${AMANDA_HOMEDIR}/example' will be created." >>${TMPFILE}
+        ${BASEDIR}/usr/bin/mkdir ${AMANDA_HOMEDIR}/example >>${TMPFILE} 2>&1
+        ret_val=$?         
+	if [ ${ret_val} -eq 0 ]; then
+                echo "`date +'%b %e %Y %T'`: The directory '${AMANDA_HOMEDIR}/example' created successfully." >>${TMPFILE}
+		${BASEDIR}/usr/bin/chown ${AMANDA_USER}:${AMANDA_GROUP} ${AMANDA_HOMEDIR}/example
+        else
+                echo "`date +'%b %e %Y %T'`: The directory '${AMANDA_HOMEDIR}/example' creation failed." >>${TMPFILE}
+        fi
+fi
+
+# create gnutar-lists directory
+if [ ! -d ${AMANDA_HOMEDIR}/gnutar-lists ] ; then
+        echo "`date +'%b %e %Y %T'`: '${AMANDA_HOMEDIR}/gnutar-lists' will be created." >>${TMPFILE}
+        ${BASEDIR}/usr/bin/mkdir ${AMANDA_HOMEDIR}/gnutar-lists >>${TMPFILE} 2>&1
+        ret_val=$?         
+	if [ ${ret_val} -eq 0 ]; then
+                echo "`date +'%b %e %Y %T'`: The directory '${AMANDA_HOMEDIR}/gnutar-lists' created successfully." >>${TMPFILE}
+		${BASEDIR}/usr/bin/chown ${AMANDA_USER}:${AMANDA_GROUP} ${AMANDA_HOMEDIR}/gnutar-lists >>${TMPFILE} 2>&1
+		${BASEDIR}/usr/bin/chmod 0740 ${AMANDA_HOMEDIR}/gnutar-lists >>${TMPFILE} 2>&1
+        else
+                echo "`date +'%b %e %Y %T'`: The directory '${AMANDA_HOMEDIR}/gnutar-lists' creation failed." >>${TMPFILE}
+        fi
+fi
+
+# make sure amanda is in /etc/services
+if [ -z "`grep "amanda" /etc/services |grep "10080/tcp"`" ] ; then
+	echo "amanda       10080/tcp" >> /etc/services
+    fi
+
+
+# if there is no amanda inet service, install it
+if [ -x ${BASEDIR}/usr/sbin/inetadm ]; then 
+    # We are using inetadm (Solaris 10)
+    ${BASEDIR}/usr/sbin/inetadm -l svc:/network/amanda/tcp >> ${TMPFILE} 2>&1
+    ret_val=$?
+    if [ ${ret_val} -eq 1 ] ; then
+	${BASEDIR}/usr/sbin/inetconv -i ${AMANDA_HOMEDIR}/example/inetd.conf.amandaclient >> ${TMPFILE} 2>&1
+        ${BASEDIR}/usr/sbin/inetadm -e svc:/network/amanda/tcp >> ${TMPFILE} 2>&1
+	ret_val=$?
+	if [ ${ret_val} -eq 0 ] ; then
+	    echo "success." >>${TMPFILE}
+	    ${BASEDIR}/usr/sbin/svcadm restart network/amanda/tcp >> ${TMPFILE} 2>&1
+	    cat ${TMPFILE}
+	    cat ${TMPFILE} >>${INSTALL_LOG}
+	else
+	    echo "failed.  Please check your system logs." >>${TMPFILE}
+	    cat ${TMPFILE}
+	    cat ${TMPFILE} >>${INSTALL_LOG}
+	fi
+    else
+        ${BASEDIR}/usr/sbin/inetadm -e svc:/network/amanda/tcp >> ${TMPFILE} 2>&1
+	ret_val=$?
+	if [ ${ret_val} -ne 0 ] ; then
+	    echo "Amanda services could not enabled.  Please check your system logs." >>${TMPFILE}
+	    cat ${TMPFILE}
+	    cat ${TMPFILE} >>${INSTALL_LOG}
+	fi
+    fi
+else 
+    # we are using inetd.conf (Solaris 9 and earlier)
+    # Check for amanda entries in /etc/inet/inetd.conf
+    if [ -z "`grep amanda /etc/inet/inetd.conf`" ] ; then
+	cat ${AMANDA_HOMEDIR}/example/inetd.conf.amandaclient >> /etc/inet/inetd.conf
+	${BASEDIR}/usr/bin/pkill -HUP inetd
+    fi
+fi
+
+echo "`date +'%b %e %Y %T'`: Installing '${BASEDIR}/var/amanda/amandates'." >${TMPFILE}
+ret_val=0
+if [ ! -f ${BASEDIR}/var/amanda/amandates ] ; then
+	${BASEDIR}/usr/bin/touch ${BASEDIR}/var/amanda/amandates >>${TMPFILE} 2>&1
+	ret_val=$?
+	if [ ${ret_val} -eq 0 ]; then
+		echo "`date +'%b %e %Y %T'`: The file '${BASEDIR}/var/amanda/amandates' has been created." >>${TMPFILE}
+	fi
+fi
+if [ ${ret_val} -eq 0 ]; then
+	echo "`date +'%b %e %Y %T'`: Ensuring correct permissions for '${BASEDIR}/var/amanda/amandates'." >>${TMPFILE}
+	${BASEDIR}/usr/bin/chown ${AMANDA_USER}:${AMANDA_GROUP} ${BASEDIR}/var/amanda/amandates >>${TMPFILE} 2>&1
+	${BASEDIR}/usr/bin/chmod 0640 ${BASEDIR}/var/amanda/amandates >>${TMPFILE} 2>&1
+fi
+if [ ${ret_val} -eq 0 ]; then
+	echo "`date +'%b %e %Y %T'`: '${BASEDIR}/var/amanda/amandates' Installation successful." >>${TMPFILE}
+	cat ${TMPFILE}
+	cat ${TMPFILE} >>${INSTALL_LOG}
+else
+	echo "`date +'%b %e %Y %T'`: '${BASEDIR}/var/amanda/amandates' Installation failed." >>${TMPFILE}
+	cat ${TMPFILE}
+	cat ${TMPFILE} >>${INSTALL_ERR}
+fi
+
+# Install .amandahosts to client
+echo "`date +'%b %e %Y %T'`: Checking '${AMANDA_HOMEDIR}/.amandahosts' file." >${TMPFILE}
+if [ ! -f ${AMANDA_HOMEDIR}/.amandahosts ] ; then
+	${BASEDIR}/usr/bin/touch ${AMANDA_HOMEDIR}/.amandahosts >>${TMPFILE} 2>&1
+fi
+for host in localhost localhost.localdomain ; do
+		if [ -z "`grep \"^${host}[[:blank:]]\+${AMANDA_USER}[[:blank:]]\+amdump\" ${AMANDA_HOMEDIR}/.amandahosts`" ] ; then
+			echo "${host}   ${AMANDA_USER} amdump" >>${AMANDA_HOMEDIR}/.amandahosts
+		fi
+done
+${BASEDIR}/usr/bin/chown ${AMANDA_USER}:${AMANDA_GROUP} ${AMANDA_HOMEDIR}/.amandahosts >>${TMPFILE} 2>&1
+${BASEDIR}/usr/bin/chmod 0600 ${AMANDA_HOMEDIR}/.amandahosts >>${TMPFILE} 2>&1
+cat ${TMPFILE}
+cat ${TMPFILE} >>${INSTALL_LOG}
+
+# Install amanda client configuration file
+echo "`date +'%b %e %Y %T'`: Checking '${SYSCONFDIR}/amanda/amanda-client.conf' file." >${TMPFILE}
+ret_val=0
+if [ ! -d ${SYSCONFDIR}/amanda ] ; then
+	echo "`date +'%b %e %Y %T'`: '${SYSCONFDIR}/amanda' will be created." >>${TMPFILE}
+	${BASEDIR}/usr/bin/mkdir ${SYSCONFDIR}/amanda >>${TMPFILE} 2>&1
+	ret_val=$?
+	if [ ${ret_val} -eq 0 ]; then
+		echo "`date +'%b %e %Y %T'`: The directory '${SYSCONFDIR}/amanda' created successfully." >>${TMPFILE}
+	else
+		echo "`date +'%b %e %Y %T'`: The directory '${SYSCONFDIR}/amanda' creation failed." >>${TMPFILE}
+	fi
+fi
+if [ ! -f ${SYSCONFDIR}/amanda/amanda-client.conf ] ; then
+	${BASEDIR}/usr/bin/cp ${AMANDA_HOMEDIR}/example/amanda-client.conf ${SYSCONFDIR}/amanda/amanda-client.conf >>${TMPFILE} 2>&1
+fi
+${BASEDIR}/usr/bin/chown ${AMANDA_USER}:${AMANDA_GROUP} ${SYSCONFDIR}/amanda/amanda-client.conf >>${TMPFILE} 2>&1
+${BASEDIR}/usr/bin/chmod 0600 ${SYSCONFDIR}/amanda/amanda-client.conf >>${TMPFILE} 2>&1
+cat ${TMPFILE}
+cat ${TMPFILE} >>${INSTALL_LOG}
+
+# Install .gnupg directory
+echo "`date +'%b %e %Y %T'`: Installing '${AMANDA_HOMEDIR}/.gnupg'." >${TMPFILE}
+ret_val=0
+if [ ! -d ${AMANDA_HOMEDIR}/.gnupg ] ; then
+	echo "`date +'%b %e %Y %T'`: '${AMANDA_HOMEDIR}/.gnupg' will be created." >>${TMPFILE}
+	${BASEDIR}/usr/bin/mkdir ${AMANDA_HOMEDIR}/.gnupg >>${TMPFILE} 2>&1
+	ret_val=$?
+	if [ ${ret_val} -eq 0 ]; then
+		echo "`date +'%b %e %Y %T'`: The directory '${AMANDA_HOMEDIR}/.gnupg' created successfully." >>${TMPFILE}
+	else
+		echo "`date +'%b %e %Y %T'`: The directory '${AMANDA_HOMEDIR}/.gnupg' creation failed." >>${TMPFILE}
+	fi
+fi
+if [ ${ret_val} -eq 0 ]; then
+	echo "`date +'%b %e %Y %T'`: Ensuring correct permissions for '${SYSCONFDIR}/.gnupg'." >>${TMPFILE}
+	${BASEDIR}/usr/bin/chown ${AMANDA_USER}:${AMANDA_GROUP} ${AMANDA_HOMEDIR}/.gnupg >>${TMPFILE} 2>&1
+	ret_val=$?
+	if [ ${ret_val} -eq 0 ]; then
+		${BASEDIR}/usr/bin/chmod 700 ${AMANDA_HOMEDIR}/.gnupg >>${TMPFILE} 2>&1
+		ret_val=$?
+	fi
+fi
+if [ ${ret_val} -eq 0 ]; then
+	echo "`date +'%b %e %Y %T'`: '${AMANDA_HOMEDIR}/.gnupg' Installation successful." >>${TMPFILE}
+	cat ${TMPFILE}
+	cat ${TMPFILE} >>${INSTALL_LOG}
+else
+	echo "`date +'%b %e %Y %T'`: '${AMANDA_HOMEDIR}/.gnupg' Installation failed." >>${TMPFILE}
+	cat ${TMPFILE}
+	cat ${TMPFILE} >>${INSTALL_ERR}
+fi
+
+# SSH RSA key generation on client for amrecover
+KEYDIR="${AMANDA_HOMEDIR}/.ssh"
+KEYFILE="id_rsa_amrecover"
+KEYPFILE="id_rsa_amrecover.pub"
+COMMENT="root@client"
+if [ ! -d ${KEYDIR} ] ; then
+	if [ -f ${KEYDIR} ] ; then
+		echo "`date +'%b %e %Y %T'`: Directory '${KEYDIR}' exists as a file.  Renaming to '${KEYDIR}.save'." >${TMPFILE}
+		mv ${KEYDIR} ${KEYDIR}.save >>${TMPFILE} 2>&1
+		cat ${TMPFILE}
+		cat ${TMPFILE} >>${INSTALL_LOG}
+	fi
+	echo "`date +'%b %e %Y %T'`: Creating directory '${KEYDIR}'." >${TMPFILE}
+	${BASEDIR}/usr/bin/mkdir ${KEYDIR} >>${TMPFILE} 2>&1
+	${BASEDIR}/usr/bin/chown ${AMANDA_USER}:${AMANDA_GROUP} ${KEYDIR} >>${TMPFILE} 2>&1
+	cat ${TMPFILE}
+	cat ${TMPFILE} >>${INSTALL_LOG}
+fi
+if [ ! -f ${KEYDIR}/${KEYFILE} ] ; then
+	echo "`date +'%b %e %Y %T'`: Creating ssh RSA key in '${KEYDIR}/${KEYFILE}'" >${TMPFILE}
+	ssh-keygen -q -C $COMMENT -t rsa -f ${KEYDIR}/${KEYFILE} -N '' >>${TMPFILE} 2>&1
+	cat ${TMPFILE}
+	cat ${TMPFILE} >>${INSTALL_LOG}
+fi
+echo "`date +'%b %e %Y %T'`: Setting owner and permission for '${KEYDIR}' and '${KEYDIR}/${KEYFILE}*'" >${TMPFILE}
+${BASEDIR}/usr/bin/chown ${AMANDA_USER}:${AMANDA_GROUP} ${KEYDIR} >>${TMPFILE} 2>&1
+${BASEDIR}/usr/bin/chown ${AMANDA_USER}:${AMANDA_GROUP} ${KEYDIR}/${KEYFILE}* >>${TMPFILE} 2>&1
+${BASEDIR}/usr/bin/chown ${AMANDA_USER}:${AMANDA_GROUP} ${KEYDIR}/${KEYPFILE}* >>${TMPFILE} 2>&1
+${BASEDIR}/usr/bin/chmod 0750 ${KEYDIR} >>${TMPFILE} 2>&1
+${BASEDIR}/usr/bin/chmod 0600 ${KEYDIR}/${KEYFILE} >>${TMPFILE} 2>&1
+${BASEDIR}/usr/bin/chmod 0600 ${KEYDIR}/${KEYPFILE} >>${TMPFILE} 2>&1
+
+cat ${TMPFILE}
+cat ${TMPFILE} >>${INSTALL_LOG}
+
+# environment variables (~amandabackup/.profile)
+echo "`date +'%b %e %Y %T'`: Checking for '${AMANDA_HOMEDIR}/.profile' and ensuring correct environment." >${TMPFILE}
+if [ ! -f ${AMANDA_HOMEDIR}/.profile ] ; then
+	touch ${AMANDA_HOMEDIR}/.profile >>${TMPFILE} 2>&1
+fi
+if [ -z "`grep PATH ${AMANDA_HOMEDIR}/.profile | grep '${SBINDIR}'`" ] ; then
+	echo "PATH=\"\$PATH:${SBINDIR}:/usr/local/bin:/usr/local/sbin:/opt/amanda/bin:/opt/amanda/sbin:/opt/csw/bin:\"" >>${AMANDA_HOMEDIR}/.profile
+	echo "export PATH" >>${AMANDA_HOMEDIR}/.profile
+	echo "LD_LIBRARY_PATH=\"\$LD_LIBRARY_PATH:/opt/amanda/lib:/usr/lib/:/usr/local/lib:/opt/csw/lib\"" >>${AMANDA_HOMEDIR}/.profile
+	echo "export LD_LIBRARY_PATH" >>${AMANDA_HOMEDIR}/.profile
+fi
+
+${BASEDIR}/usr/bin/crle -u -l /opt/amanda/lib >> ${TMPFILE} 2>&1
+${BASEDIR}/usr/bin/crle -u -l /usr/local/lib >> ${TMPFILE} 2>&1
+
+cat ${TMPFILE}
+cat ${TMPFILE} >>${INSTALL_LOG}
+echo "`date +'%b %e %Y %T'`: Setting ownership and permissions for '${AMANDA_HOMEDIR}/.profile'" >${TMPFILE}
+${BASEDIR}/usr/bin/chown ${AMANDA_USER}:${AMANDA_GROUP} ${AMANDA_HOMEDIR}/.profile >>${TMPFILE} 2>&1
+${BASEDIR}/usr/bin/chmod 0640 ${AMANDA_HOMEDIR}/.profile >>${TMPFILE} 2>&1
+cat ${TMPFILE}
+cat ${TMPFILE} >>${INSTALL_LOG}
+
+echo "`date +'%b %e %Y %T'`: === Amanda backup client installation complete. ===" >${TMPFILE}
+cat ${TMPFILE}
+cat ${TMPFILE} >>${INSTALL_LOG}
+
+if [ -f "${TMPFILE}" ]; then
+	rm -f "${TMPFILE}"
+fi
+
+echo "Amanda installation log can be found in '${INSTALL_LOG}' and errors (if any) in '${INSTALL_ERR}'."

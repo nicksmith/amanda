@@ -1,0 +1,20 @@
+PKG="AmandaBackupServer"
+ARCH="x86pc"
+VERSION="2.6.1b1"
+CATEGORY="system"
+VENDOR="Zmanda, Inc., http://www.zmanda.com/"
+EMAIL="info@zmanda.com"
+BASEDIR="/"
+CLASSES="none"
+MAXINST=1
+INTONLY=1
+NAME="The Amanda Backup and Archiving Server"
+DESC="Amanda is the leading Open-Source Backup and Archiving software.
+
+This package contains the Amanda server and client and should be 
+installed on the Amanda server i.e, the server attached t othe
+backup media where backups will be written.
+
+Amanda Forums is located at: http://forums.zmanda.com/
+Amanda Documentation is available at: http://wiki.zmanda.com/
+

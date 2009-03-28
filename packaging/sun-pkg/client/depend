@@ -1,0 +1,8 @@
+P SUNWcsu SUNWcsu Core Solaris
+P CSWgtar  CSWgtar  gnutar
+P CSWreadline CSWreadline readline
+P CSWglib2  CSWglib2  Glib core libs 
+P SUNWperl584core SUNWperl584core Perl 
+P CSWcurlrt CSWcurlrt Curl run-time
+P CSWlibnet CSWlibnet libnet library
+P CSWsasl CSWsasl Simple Authentication and Security layer

@@ -1,0 +1,130 @@
+#!/usr/bin/sh
+
+LOGDIR="${BASEDIR}/var/log/amanda"
+INSTALL_LOG="${LOGDIR}/install.log"
+INSTALL_ERR="${LOGDIR}/install.err"
+AMANDA_USER="amandabackup"
+AMANDA_GROUP="disk"
+AMANDA_HOMEDIR="${BASEDIR}/var/opt/amanda"
+SYSCONFDIR="${BASEDIR}/etc/opt"
+
+PATH=/usr/bin:/usr/local/bin:/usr/sbin:/opt/csw/bin
+export PATH
+
+TMPFILE="${BASEDIR}/tmp/pkg-${PKG}.$$"
+
+echo "`date +'%b %e %Y %T'`: Preparing to install: ${PKG} - Version ${VERSION}" >${TMPFILE}
+
+# Check for the 'amandabackup' user
+echo "`date +'%b %e %Y %T'`: Checking for '${AMANDA_USER}' user..." >>${TMPFILE}
+if [ "`${BASEDIR}/usr/bin/id ${AMANDA_USER} > /dev/null && echo 0 || echo 1`" != "0" ] ; then
+        ${BASEDIR}/usr/sbin/groupadd ${AMANDA_GROUP}  >>${TMPFILE} 2>&1
+	${BASEDIR}/usr/sbin/useradd -c "Amanda user" -g ${AMANDA_GROUP} -d ${AMANDA_HOMEDIR} -s /bin/sh ${AMANDA_USER} >>${TMPFILE} 2>&1
+	# Lock the amandabackup account until admin sets password
+	${BASEDIR}/usr/bin/passwd -l ${AMANDA_USER} >>/dev/null
+	PASSWD_EXIT=$?
+	if [ ${PASSWD_EXIT} -eq 0 ] ; then
+		echo "`date +'%b %e %Y %T'`:" >>${TMPFILE}
+		echo "`date +'%b %e %Y %T'`:  The '${AMANDA_USER}' user account for this system has been locked" >>${TMPFILE}
+		echo "`date +'%b %e %Y %T'`:  for security purposes.  Once a password for the  '${AMANDA_USER}'" >>${TMPFILE}
+		echo "`date +'%b %e %Y %T'`:  account has been set, the user can be unlocked by issuing" >>${TMPFILE}
+		echo "`date +'%b %e %Y %T'`:  the following command as root.:" >>${TMPFILE}
+		echo "`date +'%b %e %Y %T'`:" >>${TMPFILE}
+		echo "`date +'%b %e %Y %T'`:  # passwd -d ${AMANDA_USER}" >>${TMPFILE}
+		echo "`date +'%b %e %Y %T'`:" >>${TMPFILE}
+		echo "`date +'%b %e %Y %T'`:  If this is not a new installation of Amanda and you have" >>${TMPFILE}
+		echo "`date +'%b %e %Y %T'`:  pre-existing Amanda configurations in ${SYSCONFDIR}/amanda" >>${TMPFILE}
+		echo "`date +'%b %e %Y %T'`:  you should ensure that Amanda 'dumpuser' is set to '${AMANDA_USER}'" >>${TMPFILE}
+		echo "`date +'%b %e %Y %T'`:  in those configurations.  Additionally, you should ensure" >>${TMPFILE}
+		echo "`date +'%b %e %Y %T'`:  that ${AMANDA_HOMEDIR}/.amandahosts on your client systems" >>${TMPFILE}
+		echo "`date +'%b %e %Y %T'`:  is properly configured to allow connections for the user" >>${TMPFILE}
+		echo "`date +'%b %e %Y %T'`:  '${AMANDA_USER}'." >>${TMPFILE}
+		echo "`date +'%b %e %Y %T'`:" >>${TMPFILE}
+		PASSWD_OK=0
+	else
+		echo "`date +'%b %e %Y %T'`:  !!! WARNING! WARNING! WARNING! WARNING! WARNING! WARNING! !!!" >>${TMPFILE}
+		echo "`date +'%b %e %Y %T'`:  !!!                                                       !!!" >>${TMPFILE}
+		echo "`date +'%b %e %Y %T'`:  !!!  The '${AMANDA_USER}' user account for this system has been   !!!" >>${TMPFILE}
+		echo "`date +'%b %e %Y %T'`:  !!!  created, however the user has no password set. For   !!!" >>${TMPFILE}
+		echo "`date +'%b %e %Y %T'`:  !!!  security purposes this account  is normally locked   !!!" >>${TMPFILE}
+		echo "`date +'%b %e %Y %T'`:  !!!  after creation.  Unfortunately,  when locking this   !!!" >>${TMPFILE}
+		echo "`date +'%b %e %Y %T'`:  !!!  account an error occurred.  To ensure the security   !!!" >>${TMPFILE}
+		echo "`date +'%b %e %Y %T'`:  !!!  of your system  you should set a password  for the   !!!" >>${TMPFILE}
+		echo "`date +'%b %e %Y %T'`:  !!!  user account '${AMANDA_USER}' immediately!  To set  such a   !!!" >>${TMPFILE}
+		echo "`date +'%b %e %Y %T'`:  !!!  password, please issue the following command.:       !!!" >>${TMPFILE}
+		echo "`date +'%b %e %Y %T'`:  !!!                                                       !!!" >>${TMPFILE}
+		echo "`date +'%b %e %Y %T'`:  !!!   # passwd ${AMANDA_USER}                                     !!!" >>${TMPFILE}
+		echo "`date +'%b %e %Y %T'`:  !!!                                                       !!!" >>${TMPFILE}
+		echo "`date +'%b %e %Y %T'`:  !!! WARNING! WARNING! WARNING! WARNING! WARNING! WARNING! !!!" >>${TMPFILE}
+		PASSWD_OK=1
+	fi
+else
+	# log information about 'amanda' user parameters
+	echo "`date +'%b %e %Y %T'`:" >>${TMPFILE}
+	echo "`date +'%b %e %Y %T'`:  The Amanda backup software is configured to operate as the" >>${TMPFILE}
+	echo "`date +'%b %e %Y %T'`:  user '${AMANDA_USER}'.  This user exists on your system and has not" >>${TMPFILE}
+	echo "`date +'%b %e %Y %T'`:  been modified.  To ensure that Amanda functions properly," >>${TMPFILE}
+	echo "`date +'%b %e %Y %T'`:  please see that the following parameters are set for that" >>${TMPFILE}
+	echo "`date +'%b %e %Y %T'`:  user.:" >>${TMPFILE}
+	echo "`date +'%b %e %Y %T'`:" >>${TMPFILE}
+	echo "`date +'%b %e %Y %T'`:  SHELL:          /bin/sh" >>${TMPFILE}
+	echo "`date +'%b %e %Y %T'`:  HOME:           ${AMANDA_HOMEDIR}" >>${TMPFILE}
+	echo "`date +'%b %e %Y %T'`:  Default group:  ${AMANDA_GROUP}" >>${TMPFILE}
+	echo "`date +'%b %e %Y %T'`:" >>${TMPFILE}
+	PASSWD_OK=0
+fi
+if [ -d ${AMANDA_HOMEDIR} ] ; then
+	echo -n "`date +'%b %e %Y %T'`:  Checking ownership of '${AMANDA_HOMEDIR}'... " >>${TMPFILE}
+	if [ "`${BASE_DIR}/usr/bin/ls -dl ${AMANDA_HOMEDIR} | awk '{split($_,x); print x[3]}'`" = "${AMANDA_USER}" ] && \
+	   [ "`${BASE_DIR}/usr/bin/ls -dl ${AMANDA_HOMEDIR} | awk '{split($_,x); print x[4]}'`" = "${AMANDA_GROUP}" ] ; then
+		echo "correct." >>${TMPFILE}
+		VARLIB_OK=0
+	else
+		echo "incorrect!" >>${TMPFILE}
+		echo "`date +'%b %e %Y %T'`:  Please ensure that the directory '${AMANDA_HOMEDIR}' is owned by" >>${TMPFILE}
+		echo "`date +'%b %e %Y %T'`:  the user '${AMANDA_USER}' and group '${AMANDA_GROUP}'." >>${TMPFILE}
+		VARLIB_OK=1
+	fi
+else
+	VARLIB_OK=0
+fi
+echo "`date +'%b %e %Y %T'`:" >>${TMPFILE}
+
+# install am_passphrase file to server
+echo "`date +'%b %e %Y %T'`: Checking '${AMANDAHOMEDIR}/.am_passphrase' file." >>${TMPFILE} 
+if [ ! -f ${AMANDAHOMEDIR}/.am_passphrase ] ; then
+        echo "`date +'%b %e %Y %T'`: Create '${AMANDAHOMEDIR}/.am_passphrase' file." >>${TMPFILE} 2>&1
+        touch ${AMANDAHOMEDIR}/.am_passphrase  >>${TMPFILE} 2>&1
+        phrase=`echo $RANDOM | md5sum | awk '{print $1}'`
+        echo ${phrase} >>${AMANDAHOMEDIR}/.am_passphrase
+
+        chown ${amanda_user}:${amanda_group} ${AMANDAHOMEDIR}/.am_passphrase >>${TMPFILE} 2>&1
+        chmod 0700 ${AMANDAHOMEDIR}/.am_passphrase >>${TMPFILE} 2>&1
+fi
+# Create the log directory if required`
+if [ ! -d ${LOGDIR} ]; then
+	# create log directory
+	${BASEDIR}/usr/bin/mkdir -m 0750 ${LOGDIR} >>${TMPFILE} 2>&1
+	${BASEDIR}/usr/bin/chown ${AMANDA_USER}:${AMANDA_GROUP} ${LOGDIR} >>${TMPFILE} 2>&1
+fi
+
+if [ ${PASSWD_OK} -eq 1 ] || [ ${VARLIB_OK} -eq 1 ] ; then
+	cat ${TMPFILE}
+	cat ${TMPFILE} >>${INSTALL_ERR}
+	echo "Please review '${INSTALL_ERR}' to correct errors which have prevented the Amanda installaton." >&2
+	echo "Amanda installation log can be found in '${INSTALL_LOG}' and errors (if any) in '${INSTALL_ERR}'."
+	exit 1
+else
+	cat ${TMPFILE}
+	cat ${TMPFILE} >>${INSTALL_LOG}
+fi
+
+echo "`date +'%b %e %Y %T'`: === Amanda backup server installation started. ===" >${TMPFILE}
+
+cat ${TMPFILE}
+cat ${TMPFILE} >>${INSTALL_LOG}
+
+if [ -f "${TMPFILE}" ]; then
+	rm -f "${TMPFILE}"
+fi
+

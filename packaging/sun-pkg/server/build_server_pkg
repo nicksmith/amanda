@@ -1,0 +1,107 @@
+#!/bin/sh -x
+CFLAGS="-g -O2";export CFLAGS
+LD_LIBRARY_PATH=/opt/csw/lib:/usr/lib;export LD_LIBRARY_PATH
+PATH=/usr/sfw/bin:/opt/csw/gcc3/bin:/usr/ccs/bin:/usr/bin:/usr/sbin:/opt/csw/bin;export PATH
+PKG_CONFIG_PATH=/opt/csw/lib/pkgconfig;export PKG_CONFIG_PATH
+BUILD_DIR=/home/paddy/amanda-build; export BUILD_DIR
+MAJOR_VERSION=2.6
+MINOR_VERSION=1
+VERSION=$MAJOR_VERSION.$MINOR_VERSION
+
+SBIN_DIR=/opt/amanda/sbin
+BIN_DIR=/opt/amanda/bin
+SYSCONF_DIR=/etc/opt
+LIB_DIR=/opt/amanda/lib
+LIBEXEC_DIR=/opt/amanda/lib
+LOCALSTATE_DIR=/var
+AMANDA_DIR=/var/opt/amanda
+MANDIR=/opt/amanda/man
+PREFIX=/opt/amanda
+
+source_tar_location=/home/amanda/rpms/amanda/TARBALL/ace/$MAJOR_VERSION/$MINOR_VERSION/make_dist
+latest_tarball=`ls -1tr $source_tar_location|tail -1`
+amanda_source_name=amanda-$VERSION
+
+cd $BUILD_DIR;
+rm -rf $amanda_source_name
+cp $source_tar_location/$latest_tarball .
+echo "latest tarball is : $source_tar_location/$latest_tarball"
+gtar xvfz $latest_tarball
+
+config_options="--with-user=amandabackup \
+                --with-group=disk \
+                --prefix=$PREFIX \
+                --sysconfdir=$SYSCONF_DIR \
+                --sharedstatedir=$LOCALSTATE_DIR \
+                --localstatedir=$LOCALSTATE_DIR \
+                --datadir=$AMANDA_DIR \
+                --bindir=$BIN_DIR \
+                --sbindir=$SBIN_DIR \
+                --libexecdir=$LIBEXEC_DIR \
+                --libdir=$LIB_DIR \
+                --with-gnutar-listdir=$AMANDA_DIR/gnutar-lists \
+                --with-gnutar=/opt/csw/bin/gtar \
+                --with-dumperdir=$LOCALSTATE_DIR \
+                --without-amperldir  \
+                --with-index-server=localhost \
+                --with-tape-server=localhost \
+                --with-fqdn \
+                --with-bsd-security \
+                --with-bsdtcp-security \
+                --with-bsdudp-security \
+                --with-ssh-security \
+                --with-udpportrange=700,740 \
+                --with-tcpportrange=11000,11040 \
+                --with-low-tcpportrrange=700,740 \
+                --with-debugging=/var/log/amanda \
+                --with-assertions \
+                --with-includes=/opt/csw/include \
+                --with-libraries=/opt/csw/lib \
+                --with-libpth-prefix=/opt/csw/lib"
+cd $amanda_source_name
+
+PWD=`pwd`
+echo "Current dir is : $PWD"
+
+echo "Building amanda..." 
+(
+
+    mv config.status config.status.old
+    rm -f Makefile
+
+    echo "  ./configure " $config_options | tee -a $log
+    ./configure $config_options >> $log 2>&1
+    rc=$?
+    if [ $rc -ne 0 ]; then
+        echo "configure failed:  Check" $log "for errors" 1>&2
+        exit $rc
+    fi
+
+    make clean >> $log 2>&1
+    echo "make " | tee -a $log
+    make  >> $log 2>&1
+    rm -rf $BUILD_DIR/build  
+    make DESTDIR=$BUILD_DIR/build install  >> $log 2>&1
+    rc=$?
+    if [ $rc -ne 0 ]; then
+        echo "make failed:  Check" $log "for errors" 1>&2 
+    fi
+
+    cd $BUILD_DIR/build
+    echo "i pkginfo=./pkginfo" > pkgproto
+    echo "i depend=./depend" >> pkgproto
+    echo "i preinstall=./preinstall" >> pkgproto
+    echo "i postinstall=./postinstall" >> pkgproto
+    echo "i copyright=./copyright" >> pkgproto
+    echo "Amanda Community Edition - version $VERSION" > var/opt/amanda/amanda-release
+    chown amandabackup:disk $BUILD_DIR/build/var/opt/amanda
+    pkgproto opt var >> pkgproto 
+    mkdir $BUILD_DIR/amanda_pkg
+    cp pkgproto $BUILD_DIR/amanda_pkg/prototype
+    pkgmk -r `pwd` -o -f $BUILD_DIR/amanda_pkg/prototype -d `pwd`
+    pkgtrans -s `pwd` AmandaBackupServer-$VERSION-Sun-10-intel.pkg<<EOF
+
+EOF
+cp AmandaBackupServer-$VERSION-Sun-10-intel.pkg /home/amanda/rpms/amanda/SOLARIS_10_x86/ace/latest/latest/server
+)
+exit $rc
