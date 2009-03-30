@@ -1,0 +1,4 @@
+Amanda::Taper::Scan specifies device mode to Scribe
+Amanda::Taper::Scan parent class and A:T:S:Traditional impl
+taper re-implementation
+Amanda::Changer properties (7066)
