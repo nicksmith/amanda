@@ -58,6 +58,11 @@ XferElement *xfer_dest_taper(
     gboolean use_mem_cache,
     const char *disk_cache_filename);
 
+%newobject xfer_source_holding;
+XferElement * xfer_source_holding(
+    const char *filename,
+    gboolean send_cache_inform);
+
 void xfer_dest_taper_start_part(
     XferElement *self,
     gboolean retry_part,
@@ -81,6 +86,12 @@ DECLARE_CONSTRUCTOR(Amanda::XferDevice::xfer_source_device)
 PACKAGE(Amanda::Xfer::Dest::Device)
 XFER_ELEMENT_SUBCLASS()
 DECLARE_CONSTRUCTOR(Amanda::XferDevice::xfer_dest_device)
+
+/* ---- */
+
+PACKAGE(Amanda::Xfer::Source::Holding)
+XFER_ELEMENT_SUBCLASS()
+DECLARE_CONSTRUCTOR(Amanda::XferServer::xfer_source_holding)
 
 /* ---- */
 

@@ -90,14 +90,6 @@ typedef struct FileSlice {
 
 static GObjectClass *parent_class = NULL;
 
-GType xfer_dest_taper_get_type(void);
-#define XFER_DEST_TAPER_TYPE (xfer_dest_taper_get_type())
-#define XFER_DEST_TAPER(obj) G_TYPE_CHECK_INSTANCE_CAST((obj), xfer_dest_taper_get_type(), XferDestTaper)
-#define XFER_DEST_TAPER_CONST(obj) G_TYPE_CHECK_INSTANCE_CAST((obj), xfer_dest_taper_get_type(), XferDestTaper const)
-#define XFER_DEST_TAPER_CLASS(klass) G_TYPE_CHECK_CLASS_CAST((klass), xfer_dest_taper_get_type(), XferDestTaperClass)
-#define IS_XFER_DEST_TAPER(obj) G_TYPE_CHECK_INSTANCE_TYPE((obj), xfer_dest_taper_get_type ())
-#define XFER_DEST_TAPER_GET_CLASS(obj) G_TYPE_INSTANCE_GET_CLASS((obj), xfer_dest_taper_get_type(), XferDestTaperClass)
-
 typedef struct XferDestTaper {
     XferElement __parent__;
 
