@@ -762,9 +762,9 @@ PACKAGE(Amanda::Xfer)
 # worry, the blessings work out just fine)
 *new = *Amanda::Xfer::Xfer::new;
 
-# try to load Amanda::XferDevice, which is server-only.  If it's not found, then
+# try to load Amanda::XferServer, which is server-only.  If it's not found, then
 # its classes just remain undefined.
 BEGIN {
-    eval "use Amanda::XferDevice;";
+    eval "use Amanda::XferServer;";
 }
 %}
