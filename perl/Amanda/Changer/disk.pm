@@ -29,6 +29,7 @@ use Amanda::Config qw( :getconf );
 use Amanda::Debug;
 use Amanda::Changer;
 use Amanda::MainLoop;
+use Amanda::Device qw( :constants );
 
 =head1 NAME
 
@@ -67,7 +68,7 @@ particular slots.  Each drive is represented as a subdirectory containing a
 
 sub new {
     my $class = shift;
-    my ($cc, $tpchanger) = @_;
+    my ($config, $tpchanger) = @_;
     my ($dir) = ($tpchanger =~ /chg-disk:(.*)/);
 
     unless (-d $dir) {
@@ -79,6 +80,7 @@ sub new {
     # they're gone when they delete their drive directory
     my $self = {
 	dir => $dir,
+	config => $config,
     };
 
     bless ($self, $class);
@@ -164,8 +166,7 @@ sub _load_by_slot {
 
     my $next_slot = $self->_get_next($slot);
 
-    Amanda::MainLoop::call_later($params{'res_cb'}, undef,
-	Amanda::Changer::disk::Reservation->new($self, $drive, $slot, $next_slot));
+    $self->_make_res($params{'res_cb'}, $drive, $slot, $next_slot);
 }
 
 sub _load_by_label {
@@ -195,8 +196,31 @@ sub _load_by_label {
 
     my $next_slot = $self->_get_next($slot);
 
-    Amanda::MainLoop::call_later($params{'res_cb'}, undef,
-	Amanda::Changer::disk::Reservation->new($self, $drive, $slot, $next_slot));
+    $self->_make_res($params{'res_cb'}, $drive, $slot, $next_slot);
+}
+
+sub _make_res {
+    my $self = shift;
+    my ($res_cb, $drive, $slot, $next_slot) = @_;
+    my $res;
+
+    my $device = Amanda::Device->new("file:$drive");
+    if ($device->status != $DEVICE_STATUS_SUCCESS) {
+	return $self->make_error("failed", $res_cb,
+		reason => "device",
+		message => "opening 'file:$drive': " . $device->error_or_status());
+    }
+
+    if (my $err = $self->{'config'}->configure_device($device)) {
+	return $self->make_error("failed", $res_cb,
+		reason => "device",
+		message => $err);
+    }
+
+    $res = Amanda::Changer::disk::Reservation->new($self, $device, $drive, $slot, $next_slot);
+
+call_res_cb:
+    Amanda::MainLoop::call_later($res_cb, undef, $res);
 }
 
 # Internal function to find an unused (nonexistent) driveN subdirectory and
@@ -371,13 +395,13 @@ use vars qw( @ISA );
 
 sub new {
     my $class = shift;
-    my ($chg, $drive, $slot, $next_slot) = @_;
+    my ($chg, $device, $drive, $slot, $next_slot) = @_;
     my $self = Amanda::Changer::Reservation::new($class);
 
     $self->{'chg'} = $chg;
     $self->{'drive'} = $drive;
 
-    $self->{'device_name'} = "file:$drive";
+    $self->{'device'} = $device;
     $self->{'this_slot'} = $slot;
     $self->{'next_slot'} = $next_slot;
 

@@ -144,11 +144,11 @@ C<failed>.  The reason for the failure is usually clear to the user from the
 message, but for callers who may need to distinguish, C<< $err->{'reason'} >>
 has one of the following values:
 
-  notfound	    The requested volume was not found
-  invalid	    The caller's request was invalid (e.g., bad slot)
-  notimpl	    The requested operation is not supported
-  inuse		    A required resource is already in use
-  unknown	    Unknown reason
+  notfound          The requested volume was not found
+  device            There was an error opening the device
+  notimpl           The requested operation is not supported
+  inuse             A required resource is already in use
+  unknown           Unknown reason
 
 Like types, checks for particular reasons should use the methods, to avoid
 undetected typos:
@@ -265,9 +265,10 @@ user, and have meaning for the changer.
 
 =head2 RESERVATION OBJECTS
 
-=head3 $res->{'device_name'}
+=head3 $res->{'device'}
 
-This is the name of the device reserved by a reservation object.
+This is the fully configured device for the reserved volume.  The device
+is not started.
 
 =head3 $res->{'this_slot'}
 
@@ -372,6 +373,44 @@ and returns true.  The usual recipe is
     return if $self->check_error($params{'res_cb'});
     # ...
   }
+
+=head2 CONFIG
+
+C<Amanda::Changer->new> calls subclass constructors with two parameters: a
+configuration object and a changer specification.  The changer specification is
+the string that led to creation of this changer device.  The configuration
+object is of type C<Amanda::Changer::Config>, and can be treated as a hashref
+with the following keys:
+
+  name                  -- name of the changer section (or "default")
+  is_global             -- true if this changer is the default, global changer
+  tapedev               -- tapedev parameter
+  tpchanger             -- tpchanger parameter
+  changerdev            -- changerdev parameter
+  changerfile           -- changerfile parameter
+  properties            -- all properties for this changer
+  device_properties     -- all device properties for this changer
+
+The four parameters are just as supplied by the user, either in the global
+config or in a changer section.  Changer authors are cautioned not to try to
+override any of these parameters as previous changers have done (e.g.,
+C<changerfile> specifying both configuration and state files).  Use properties
+instead.
+
+The C<properties> and C<device_properties> parameters are in the format
+provided by C<Amanda::Config>.  If C<is_global> is true, then
+C<device_properties> will include any device properties specified globally, as
+well as properties culled from the global tapetype.
+
+The C<configure_device> method generally takes care of the intricacies of
+handling device properties.  Pass it a newly opened device and it will apply
+the relevant properties, returning undef on success or an error message on
+failure.
+
+The C<get_property> method is a shortcut method to get the value of a changer
+property, ignoring its the priority and other attributes.  In a list context,
+it returns all values for the property; in a scalar context, it returns the
+first value specified.
 
 =head1 SEE ALSO
 
@@ -566,7 +605,7 @@ sub _new_from_uri { # (note: this sub is patched by the installcheck)
 	die $@;
     }
 
-    my $rv = $pkgname->new($cc, $uri);
+    my $rv = $pkgname->new(Amanda::Changer::Config->new($cc), $uri);
     die "$pkgname->new did not return an Amanda::Changer object or an Amanda::Changer::Error"
 	unless ($rv->isa("Amanda::Changer") or $rv->isa("Amanda::Changer::Error"));
 
@@ -784,7 +823,7 @@ use overload
     'cmp' => sub { $_[0]->{'message'} cmp $_[1]; };
 
 my %known_err_types = map { ($_, 1) } qw( fatal failed );
-my %known_err_reasons = map { ($_, 1) } qw( notfound invalid notimpl inuse unknown );
+my %known_err_reasons = map { ($_, 1) } qw( notfound invalid notimpl inuse unknown device );
 
 sub new {
     my $class = shift; # ignore class
@@ -835,7 +874,6 @@ sub inuse { $_[0]->{'reason'} eq 'inuse'; }
 sub unknown { $_[0]->{'reason'} eq 'unknown'; }
 
 package Amanda::Changer::Reservation;
-
 # this is a simple base class with stub method or two.
 
 sub new {
@@ -887,6 +925,127 @@ sub do_release {
     if (exists $params{'finished_cb'}) {
 	Amanda::MainLoop::call_later($params{'finished_cb'}, undef);
     }
+}
+
+package Amanda::Changer::Config;
+use Amanda::Config qw( :getconf );
+use Amanda::Device;
+
+sub new {
+    my $class = shift;
+    my ($cc) = @_;
+
+    my $self = bless {}, $class;
+
+    if (defined $cc) {
+	$self->{'name'} = changer_config_name($cc);
+	$self->{'is_global'} = 0;
+
+	$self->{'tapedev'} = changer_config_getconf($cc, $CHANGER_CONFIG_TAPEDEV);
+	$self->{'tpchanger'} = changer_config_getconf($cc, $CHANGER_CONFIG_TPCHANGER);
+	$self->{'changerdev'} = changer_config_getconf($cc, $CHANGER_CONFIG_CHANGERDEV);
+	$self->{'changerfile'} = changer_config_getconf($cc, $CHANGER_CONFIG_CHANGERFILE);
+
+	$self->{'properties'} = changer_config_getconf($cc, $CHANGER_CONFIG_PROPERTY);
+	$self->{'device_properties'} = changer_config_getconf($cc, $CHANGER_CONFIG_DEVICE_PROPERTY);
+    } else {
+	$self->{'name'} = "default";
+	$self->{'is_global'} = 1;
+
+	$self->{'tapedev'} = getconf($CNF_TAPEDEV);
+	$self->{'tpchanger'} = getconf($CNF_TPCHANGER);
+	$self->{'changerdev'} = getconf($CNF_CHANGERDEV);
+	$self->{'changerfile'} = getconf($CNF_CHANGERFILE);
+
+	# no changer properties for a global changer
+	$self->{'properties'} = {};
+
+	# note that this *intentionally* overwrites the implict properties with
+	# any explicit device_property parameters (rather than appending to the
+	# 'values' key)
+	my $implicit_properties = $self->_get_implicit_properties();
+	my $global_properties = getconf($CNF_DEVICE_PROPERTY);
+	$self->{'device_properties'} = { %$implicit_properties, %$global_properties };
+    }
+    return $self;
+}
+
+sub configure_device {
+    my $self = shift;
+    my ($device) = @_;
+
+    while (my ($propname, $propinfo) = each(%{$self->{'device_properties'}})) {
+	for my $value (@{$propinfo->{'values'}}) {
+	    if (!$device->property_set($propname, $value)) {
+		my $msg = "Error setting '$propname' on device '".$device->device_name."'";
+		if (exists $propinfo->{'optional'}) {
+		    if ($propinfo->{'optional'} eq 'warn') {
+			warn("$msg (ignored)");
+		    }
+		} else {
+		    return $msg;
+		}
+	    }
+	}
+    }
+
+    return undef;
+}
+
+sub get_property {
+    my $self = shift;
+    my ($property) = @_;
+
+    my $prophash = $self->{'properties'}->{$property};
+    return undef unless defined($prophash);
+
+    return wantarray? @{$prophash->{'values'}} : $prophash->{'values'}->[0];
+}
+
+sub _get_implicit_properties {
+    my $self = shift;
+    my $props = {};
+
+    my $tapetype_name = getconf($CNF_TAPETYPE);
+    return unless defined($tapetype_name);
+
+    my $tapetype = lookup_tapetype($tapetype_name);
+    return unless defined($tapetype);
+
+    # The property hashes used here add the 'optional' key, which indicates
+    # that the property is implicit and that a failure to set it is not fatal.
+    # The flag is used by configure_device.
+    if (tapetype_seen($tapetype, $TAPETYPE_LENGTH)) {
+	$props->{'max_volume_usage'} = {
+	    optional => 1,
+	    priority => 0,
+	    append => 0,
+	    values => [
+		tapetype_getconf($tapetype, $TAPETYPE_LENGTH) * 1024,
+	    ]};
+    }
+
+    if (tapetype_seen($tapetype, $TAPETYPE_READBLOCKSIZE)) {
+	$props->{'read_buffer_size'} = {
+	    optional => "warn", # optional, but give a warning
+	    priority => 0,
+	    append => 0,
+	    values => [
+		tapetype_getconf($tapetype, $TAPETYPE_READBLOCKSIZE) * 1024,
+	    ]};
+    }
+
+    if (tapetype_seen($tapetype, $TAPETYPE_BLOCKSIZE)) {
+	$props->{'block_size'} = {
+	    priority => 0,
+	    append => 0,
+	    values => [
+		# convert the length from kb to bytes here
+		tapetype_getconf($tapetype, $TAPETYPE_BLOCKSIZE) * 1024,
+	    ]};
+    }
+
+    return $props;
 }
 
 1;

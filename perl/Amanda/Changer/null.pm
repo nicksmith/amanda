@@ -47,7 +47,7 @@ Specify this changer as C<chg-null:>.
 
 sub new {
     my $class = shift;
-    my ($cc, $tpchanger) = @_;
+    my ($config, $tpchanger) = @_;
 
     return bless ({}, $class);
 }
@@ -92,7 +92,7 @@ sub new {
     my $class = shift;
     my $self = Amanda::Changer::Reservation::new($class);
 
-    $self->{'device_name'} = "null:";
+    $self->{'device'} = Amanda::Device->new("null:");
     $self->{'this_slot'} = "null";
     $self->{'next_slot'} = "null";
 
