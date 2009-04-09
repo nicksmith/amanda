@@ -227,10 +227,20 @@ if WANT_SERVER
 # PACKAGE: Amanda::Taper::*
 AmandaTaperdir = $(amperldir)/Amanda/Taper
 AmandaTaper_DATA = \
+	Amanda/Taper/Scan.pm \
 	Amanda/Taper/Scribe.pm
 HTML_SOURCE_FILES += $(AmandaTaper_DATA)
 endif
 EXTRA_DIST += $(AmandaTaper_DATA)
+
+if WANT_SERVER
+# PACKAGE: Amanda::Taper::Scan::*
+AmandaTaperScandir = $(amperldir)/Amanda/Taper/Scan
+AmandaTaperScan_DATA = \
+	Amanda/Taper/Scan/traditional.pm
+HTML_SOURCE_FILES += $(AmandaTaperScan_DATA)
+endif
+EXTRA_DIST += $(AmandaTaperScan_DATA)
 
 # PACKAGE: Amanda::Process
 if WANT_SERVER
