@@ -2,3 +2,18 @@ Amanda::Taper::Scan specifies device mode to Scribe
 Amanda::Taper::Scan parent class and A:T:S:Traditional impl
 taper re-implementation
 Amanda::Changer properties (7066)
+
+Taperscan results:
+
+next=unlabeled searchable=0 label-new=0 result=scan
+next=unlabeled searchable=1 label-new=0 result=scan
+next=reuse searchable=0 label-new=0 result=scan
+next=reuse searchable=1 label-new=0 result=search-then-scan
+next=none searchable=0 label-new=0 result=scan
+next=none searchable=1 label-new=0 result=scan
+next=labeled searchable=0 label-new=0 result=scan
+next=unlabeled searchable=1 label-new=0 result=scan
+
+if multiple vols reusable, scans and stops at "ideal"
+
+if the "ideal" tape is not found, it uses the first non-ideal, but reusable, tape it found
